@@ -1,3 +1,5 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,5 +19,15 @@ class Settings(BaseSettings):
     llm_model: str = "claude-sonnet-4-20250514"
     llm_temperature: float = 0.0
 
+    # LangSmith tracing (optional)
+    langchain_api_key: str = ""
+    langchain_project: str = "ideaops"
+
 
 settings = Settings()  # type: ignore[call-arg]
+
+# Propagate LangSmith settings into env vars so langchain auto-tracing activates
+if settings.langchain_api_key:
+    os.environ.setdefault("LANGCHAIN_TRACING_V2", "true")
+    os.environ.setdefault("LANGCHAIN_API_KEY", settings.langchain_api_key)
+    os.environ.setdefault("LANGCHAIN_PROJECT", settings.langchain_project)

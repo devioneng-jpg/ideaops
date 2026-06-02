@@ -11,7 +11,7 @@ from app.models.agent_outputs import (
     TaskBreakdownOutput,
 )
 from app.services import supabase as db
-from app.services.workflow import run_workflow
+from app.services.workflow import run_workflow, SPECIALISTS
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +85,31 @@ def get_idea(idea_id: str):
     planning_output = PlanningOutput(**run["planning_output"]) if run.get("planning_output") else None
     task_output = TaskBreakdownOutput(**run["task_output"]) if run.get("task_output") else None
 
+    # Determine current and completed steps from agent_step_logs
+    steps = db.get_steps_for_run(run_id)
+    completed_steps: list[str] = []
+    started_steps: set[str] = set()
+    for step in steps:
+        if step["status"] == "completed":
+            completed_steps.append(step["step_name"])
+        elif step["status"] == "started":
+            started_steps.add(step["step_name"])
+
+    # current_step = started but not yet completed
+    in_progress = started_steps - set(completed_steps)
+    if in_progress:
+        current_step = in_progress.pop()
+    elif run["status"] == "running":
+        # Between steps (one completed, next hasn't started yet).
+        # Infer the next step from the pipeline order.
+        current_step = None
+        for s in SPECIALISTS:
+            if s not in completed_steps:
+                current_step = s
+                break
+    else:
+        current_step = None
+
     return WorkflowRunResponse(
         idea_id=idea_id,
         run_id=run_id,
@@ -98,4 +123,6 @@ def get_idea(idea_id: str):
         notion_page_id=run.get("notion_page_id"),
         notion_url=run.get("notion_url"),
         error_message=run.get("error_message"),
+        current_step=current_step,
+        completed_steps=completed_steps,
     )

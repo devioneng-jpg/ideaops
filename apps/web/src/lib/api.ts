@@ -57,6 +57,8 @@ export interface WorkflowRunResponse {
   notion_page_id: string | null;
   notion_url: string | null;
   error_message: string | null;
+  current_step: string | null;
+  completed_steps: string[];
 }
 
 export async function submitIdea(
@@ -95,12 +97,21 @@ function sleep(ms: number): Promise<void> {
  */
 export async function pollIdea(
   ideaId: string,
-  { intervalMs = 2000, timeoutMs = 180000 }: { intervalMs?: number; timeoutMs?: number } = {}
+  {
+    intervalMs = 2000,
+    timeoutMs = 180000,
+    onProgress,
+  }: {
+    intervalMs?: number;
+    timeoutMs?: number;
+    onProgress?: (step: string | null, completedSteps: string[]) => void;
+  } = {}
 ): Promise<WorkflowRunResponse> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     try {
       const run = await getIdea(ideaId);
+      onProgress?.(run.current_step, run.completed_steps);
       if (TERMINAL_STATUSES.has(run.status)) return run;
     } catch (err) {
       // The run row may not be queryable for a beat after submit — keep polling until the deadline.

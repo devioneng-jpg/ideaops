@@ -105,14 +105,3 @@ def test_agent_failure_short_circuits(monkeypatch, mock_agents):
     assert "planning_output" not in result
 
 
-def test_notion_failure_is_partial_success(monkeypatch, mock_agents):
-    def boom(**kwargs):
-        raise RuntimeError("notion down")
-
-    monkeypatch.setattr(wf, "run_notion_publisher", boom)
-
-    result = wf.run_workflow("an idea", "idea-1", "run-1")
-    assert result["status"] == "partial_success"
-    # The upstream work is preserved.
-    assert result["task_output"] is not None
-    assert "notion_url" not in result

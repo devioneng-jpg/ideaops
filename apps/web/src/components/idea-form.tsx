@@ -2,12 +2,21 @@
 
 import { useState } from "react";
 
+const STEP_LABELS: Record<string, string> = {
+  classify: "Classifying idea...",
+  score: "Scoring idea...",
+  plan: "Planning MVP...",
+  break_down_tasks: "Breaking down tasks...",
+  publish_notion: "Publishing to Notion...",
+};
+
 interface IdeaFormProps {
   onSubmit: (ideaText: string) => void;
   isLoading: boolean;
+  currentStep: string | null;
 }
 
-export function IdeaForm({ onSubmit, isLoading }: IdeaFormProps) {
+export function IdeaForm({ onSubmit, isLoading, currentStep }: IdeaFormProps) {
   const [text, setText] = useState("");
 
   function handleSubmit(e: React.FormEvent) {
@@ -44,7 +53,7 @@ export function IdeaForm({ onSubmit, isLoading }: IdeaFormProps) {
         {isLoading ? (
           <span className="flex items-center gap-2">
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            Processing...
+            {currentStep ? STEP_LABELS[currentStep] ?? "Processing..." : "Processing..."}
           </span>
         ) : (
           "Analyze Idea"

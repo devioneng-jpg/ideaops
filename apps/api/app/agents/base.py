@@ -8,6 +8,7 @@ failure logging (v1 LLM implementation requirements). No autonomous loops — a
 
 import json
 import logging
+import re
 from typing import Type, TypeVar
 
 from langchain_anthropic import ChatAnthropic
@@ -31,10 +32,30 @@ def get_llm(max_tokens: int = 1024) -> ChatAnthropic:
 
 
 def _extract_text(content: object) -> str:
-    # Anthropic responses can come back as a plain string or a list of content blocks.
+    """Pull the raw text out of an Anthropic response content field."""
     if isinstance(content, list):
-        return content[0].get("text", "") if content else ""
-    return content if isinstance(content, str) else str(content)
+        text = content[0].get("text", "") if content else ""
+    elif isinstance(content, str):
+        text = content
+    else:
+        text = str(content)
+    return _extract_json(text)
+
+
+def _extract_json(text: str) -> str:
+    """Strip markdown fences and surrounding prose to isolate the JSON object."""
+    # Try to pull JSON from ```json ... ``` or ``` ... ``` blocks first.
+    match = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+
+    # Otherwise find the first { ... } span (greedy on the closing brace).
+    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if match:
+        return match.group(0).strip()
+
+    # Last resort — return as-is and let json.loads raise.
+    return text.strip()
 
 
 def call_structured(

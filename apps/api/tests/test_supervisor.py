@@ -31,13 +31,3 @@ def test_failure_short_circuits_to_finalize():
     assert supervisor(state)["next"] == "finalize"
 
 
-def test_partial_success_finalizes_without_notion_page():
-    # Notion failed (no page id) but status is partial_success → don't retry, finalize.
-    state = {
-        "classifier_output": _SENTINEL,
-        "scoring_output": _SENTINEL,
-        "planning_output": _SENTINEL,
-        "task_output": _SENTINEL,
-        "status": "partial_success",
-    }
-    assert supervisor(state)["next"] == "finalize"

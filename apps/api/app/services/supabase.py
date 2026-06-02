@@ -109,6 +109,18 @@ def get_tasks_for_run(run_id: str) -> list[dict]:
 
 # ── Agent Step Logs ───────────────────────────────────────────────────────────
 
+def get_steps_for_run(run_id: str) -> list[dict]:
+    client = get_client()
+    result = (
+        client.table("agent_step_logs")
+        .select("*")
+        .eq("run_id", run_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return result.data
+
+
 def log_step(
     run_id: str,
     step_name: str,

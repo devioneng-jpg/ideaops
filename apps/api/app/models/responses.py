@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .agent_outputs import (
     ClassifierOutput,
@@ -32,3 +32,5 @@ class WorkflowRunResponse(BaseModel):
     notion_page_id: Optional[str] = None
     notion_url: Optional[str] = None
     error_message: Optional[str] = None
+    current_step: Optional[str] = None
+    completed_steps: list[str] = Field(default_factory=list)
