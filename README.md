@@ -30,12 +30,94 @@ Twilio SMS ────────→ POST /api/twilio/inbound ──┘     (c
 ```
 ideaops/
 ├── apps/
-│   ├── web/          # Next.js 15 frontend
-│   └── api/          # FastAPI backend + LangGraph agents
+│   ├── api/                        # FastAPI backend + LangGraph agents
+│   │   ├── app/
+│   │   │   ├── main.py             # FastAPI app entry point
+│   │   │   ├── config.py           # Settings (env vars, Pydantic)
+│   │   │   ├── agents/             # Specialist agent implementations
+│   │   │   │   ├── base.py         # Shared LLM client + structured call helper
+│   │   │   │   ├── classifier.py   # Step 1: Classify idea
+│   │   │   │   ├── scoring.py      # Step 2: Score idea
+│   │   │   │   ├── planner.py      # Step 3: Generate MVP brief
+│   │   │   │   ├── task_breakdown.py  # Step 4: Break into tasks
+│   │   │   │   └── notion_publisher.py  # Step 5: Publish to Notion
+│   │   │   ├── prompts/            # LLM prompt templates per agent
+│   │   │   ├── models/             # Pydantic request/response schemas
+│   │   │   ├── routes/             # API route handlers
+│   │   │   │   ├── ideas.py        # POST/GET /api/ideas
+│   │   │   │   ├── twilio.py       # POST /api/twilio/inbound
+│   │   │   │   └── health.py       # GET /api/health
+│   │   │   └── services/           # Business logic
+│   │   │       ├── workflow.py     # LangGraph supervisor + specialist nodes
+│   │   │       ├── supabase.py     # DB operations
+│   │   │       ├── notion.py       # Notion API client + page builder
+│   │   │       └── twilio.py       # SMS client
+│   │   ├── tests/                  # Unit tests (all LLM/DB mocked)
+│   │   └── evals/                  # Golden set evaluation runner
+│   │
+│   └── web/                        # Next.js 15 frontend
+│       └── src/
+│           ├── app/                # Pages (home, ideas history)
+│           ├── components/         # UI (form, progress steps, results, task table)
+│           └── lib/api.ts          # API client + polling logic
+│
 ├── supabase/
-│   └── migrations/   # Postgres schema
-└── README.md
+│   └── migrations/                 # Postgres schema (4 tables)
+└── packages/shared/                # Shared utilities (future)
 ```
+
+## Agents
+
+The pipeline uses a **supervisor + specialists** architecture built on LangGraph. The supervisor is a deterministic, rule-based router (no LLM) — it inspects the workflow state and dispatches the next specialist that hasn't run yet. Every specialist (except the Notion publisher) is a single-shot LLM call using Claude Sonnet at temperature 0.0.
+
+### Pipeline
+
+```
+Supervisor ─→ Classifier ─→ Supervisor ─→ Scorer ─→ Supervisor ─→ Planner
+           ─→ Supervisor ─→ Task Breakdown ─→ Supervisor ─→ Notion Publisher
+           ─→ Supervisor ─→ Finalize
+```
+
+The supervisor checks which outputs exist in the run state and always routes to the first missing step. If any step sets `status="failed"`, the supervisor short-circuits to `finalize`. If Notion fails, the run completes as `partial_success` (all structured outputs are already saved).
+
+### Specialist Agents
+
+| # | Agent | File | Input | Output | Max Tokens |
+|---|-------|------|-------|--------|------------|
+| 1 | **Classifier** | `agents/classifier.py` | Raw idea text | `category`, `audience`, `problem_statement`, `effort_level`, `urgency`, `confidence` | 1024 |
+| 2 | **Scorer** | `agents/scoring.py` | Idea text + classifier output | `novelty_score`, `feasibility_score`, `portfolio_value_score`, `business_value_score`, `total_score`, `rationale` | 1024 |
+| 3 | **Planner** | `agents/planner.py` | Idea text + classifier + scoring | `one_sentence_summary`, `problem`, `target_user`, `proposed_solution`, `mvp_scope`, `non_goals`, `thirty_day_plan`, `risks`, `success_metrics` | 2048 |
+| 4 | **Task Breakdown** | `agents/task_breakdown.py` | Planning output | 8-15 `TaskItem`s, each with `title`, `description`, `priority`, `order_index`, `estimated_hours` | 2048 |
+| 5 | **Notion Publisher** | `agents/notion_publisher.py` | All previous outputs | `notion_page_id`, `notion_url` | N/A |
+
+### Agent Details
+
+**Classifier** — Categorizes the idea into one of 7 types (`saas`, `internal_tool`, `ai_agent`, `content`, `marketplace`, `workflow_automation`, `other`), identifies the target audience, distills the core problem, and estimates effort and urgency.
+
+**Scorer** — Rates the idea on four dimensions (1-10 each): novelty, feasibility, portfolio value, and business value. The total score is a weighted average (0.2 novelty + 0.3 feasibility + 0.2 portfolio + 0.3 business) with a rationale explaining the scores.
+
+**Planner** — Generates a full MVP project brief: one-sentence summary, problem/user/solution definition, 4-8 MVP scope features, explicit non-goals, a week-by-week 30-day plan, 3-5 risks, and 3-5 success metrics.
+
+**Task Breakdown** — Decomposes the plan into 8-15 concrete, ordered tasks. Each task has a priority (high/medium/low) and an estimated hours figure. Tasks are ordered logically: setup, core features, testing, deployment.
+
+**Notion Publisher** — Not an LLM agent. Calls the Notion API to create a page under the configured parent page with the full project brief, scoring, tasks (as to-do items), and all metadata. Failures are non-fatal (`partial_success`).
+
+### Shared Infrastructure (`agents/base.py`)
+
+All LLM agents use `call_structured()`, which:
+1. Sends the prompt to Claude via `ChatAnthropic`
+2. Extracts JSON from the response (strips markdown fences and surrounding prose)
+3. Parses it into a typed Pydantic model
+4. Retries up to 2 times on transient errors or JSON parse failures
+
+### Run Statuses
+
+| Status | Meaning |
+|--------|---------|
+| `running` | Pipeline is actively executing |
+| `completed` | All 5 steps succeeded, including Notion publish |
+| `partial_success` | Analysis succeeded but Notion publish failed — all structured outputs are saved |
+| `failed` | A core step (classify/score/plan/tasks) failed; pipeline short-circuited |
 
 ## Setup
 

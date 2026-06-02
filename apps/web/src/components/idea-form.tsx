@@ -27,37 +27,46 @@ export function IdeaForm({ onSubmit, isLoading, currentStep }: IdeaFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label htmlFor="idea" className="mb-2 block text-sm font-medium text-gray-300">
+        <label
+          htmlFor="idea"
+          className="mb-2 block text-sm font-medium text-gray-300"
+        >
           Describe your idea
         </label>
-        <textarea
-          id="idea"
-          rows={5}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="e.g. A CLI tool that turns natural language into SQL queries against your local database..."
-          className="w-full rounded-lg border border-gray-700 bg-gray-900 px-4 py-3 text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          disabled={isLoading}
-        />
-        <p className="mt-1 text-xs text-gray-500">
+        <div className="gradient-border rounded-xl">
+          <textarea
+            id="idea"
+            rows={5}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="e.g. A CLI tool that turns natural language into SQL queries against your local database..."
+            className="w-full rounded-xl border-0 bg-surface-raised px-4 py-3 text-gray-100 placeholder-gray-500 transition-shadow focus:shadow-glow focus:outline-none focus:ring-1 focus:ring-accent-blue/50"
+            disabled={isLoading}
+          />
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
           Minimum 10 characters. Be as descriptive as you like.
         </p>
       </div>
       <button
         type="submit"
         disabled={isLoading || text.trim().length < 10}
-        className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+        className="group relative overflow-hidden rounded-lg bg-gradient-accent px-6 py-2.5 text-sm font-medium text-white shadow-glow transition-all hover:shadow-glow-lg disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
       >
-        {isLoading ? (
-          <span className="flex items-center gap-2">
-            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            {currentStep ? STEP_LABELS[currentStep] ?? "Processing..." : "Processing..."}
-          </span>
-        ) : (
-          "Analyze Idea"
-        )}
+        <span className="relative z-10">
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              {currentStep
+                ? (STEP_LABELS[currentStep] ?? "Processing...")
+                : "Processing..."}
+            </span>
+          ) : (
+            "Analyze Idea"
+          )}
+        </span>
       </button>
     </form>
   );

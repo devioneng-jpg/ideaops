@@ -12,6 +12,25 @@ interface IdeaSummary {
   status: string;
 }
 
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    completed:
+      "border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-400",
+    partial_success:
+      "border-yellow-500/20 bg-yellow-500/[0.08] text-yellow-400",
+    failed: "border-red-500/20 bg-red-500/[0.08] text-red-400",
+    processing: "border-accent-blue/20 bg-accent-blue/[0.08] text-accent-blue",
+    pending: "border-white/10 bg-white/5 text-gray-400",
+  };
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[status] || "border-white/10 bg-white/5 text-gray-400"}`}
+    >
+      {status.replace("_", " ")}
+    </span>
+  );
+}
+
 export default function IdeasHistoryPage() {
   const [ideas, setIdeas] = useState<IdeaSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,12 +53,17 @@ export default function IdeasHistoryPage() {
   }, []);
 
   if (loading) {
-    return <p className="text-gray-400">Loading...</p>;
+    return (
+      <div className="flex items-center gap-2 text-gray-400">
+        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-gray-300" />
+        Loading...
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-800 bg-red-950 p-4 text-sm text-red-300">
+      <div className="card rounded-lg border-red-500/20 bg-red-500/[0.06] px-4 py-3 text-sm text-red-300">
         {error}
       </div>
     );
@@ -47,25 +71,27 @@ export default function IdeasHistoryPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-3xl font-bold">Idea History</h1>
+      <h1 className="gradient-text mb-8 text-4xl font-bold tracking-tight">
+        Idea History
+      </h1>
       {ideas.length === 0 ? (
-        <p className="text-gray-400">No ideas submitted yet.</p>
+        <p className="text-gray-500">No ideas submitted yet.</p>
       ) : (
         <div className="space-y-3">
           {ideas.map((idea) => (
             <a
               key={idea.id}
               href={`/?id=${idea.id}`}
-              className="block rounded-lg border border-gray-800 bg-gray-900 p-4 transition hover:border-gray-700"
+              className="card card-hover block rounded-xl p-4"
             >
-              <div className="mb-1 flex items-center justify-between">
+              <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs text-gray-500">
                   {new Date(idea.created_at).toLocaleDateString()} via{" "}
                   {idea.source}
                 </span>
                 <StatusBadge status={idea.status} />
               </div>
-              <p className="text-sm text-gray-300 line-clamp-2">
+              <p className="text-sm leading-relaxed text-gray-300 line-clamp-2">
                 {idea.raw_text}
               </p>
             </a>
@@ -73,22 +99,5 @@ export default function IdeasHistoryPage() {
         </div>
       )}
     </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    completed: "bg-green-900 text-green-300",
-    partial_success: "bg-yellow-900 text-yellow-300",
-    failed: "bg-red-900 text-red-300",
-    processing: "bg-blue-900 text-blue-300",
-    pending: "bg-gray-700 text-gray-300",
-  };
-  return (
-    <span
-      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[status] || "bg-gray-700 text-gray-300"}`}
-    >
-      {status}
-    </span>
   );
 }

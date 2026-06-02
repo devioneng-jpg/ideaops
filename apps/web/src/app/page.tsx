@@ -31,9 +31,7 @@ export default function HomePage() {
     setWarning(null);
 
     try {
-      // Submit returns immediately; the pipeline runs in the background.
       const ack = await submitIdea(ideaText);
-      // Poll until the run finishes, updating progress along the way.
       const full = await pollIdea(ack.idea_id, {
         onProgress: (step, done) => {
           setCurrentStep(step);
@@ -65,30 +63,47 @@ export default function HomePage() {
   }
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="mb-2 text-3xl font-bold">Submit an Idea</h1>
-        <p className="text-gray-400">
+    <div className="space-y-10">
+      {/* Hero */}
+      <div className="space-y-3">
+        <h1 className="gradient-text text-4xl font-bold tracking-tight sm:text-5xl">
+          Submit an Idea
+        </h1>
+        <p className="max-w-2xl text-base leading-relaxed text-gray-400">
           Describe your idea and IdeaOps will classify it, score it, generate an
           MVP plan, and break it into tasks.
         </p>
       </div>
 
-      <IdeaForm onSubmit={handleSubmit} isLoading={isLoading} currentStep={currentStep} />
+      <IdeaForm
+        onSubmit={handleSubmit}
+        isLoading={isLoading}
+        currentStep={currentStep}
+      />
 
       {isLoading && (
         <ProgressSteps currentStep={currentStep} completedSteps={completedSteps} />
       )}
 
       {error && (
-        <div className="rounded-lg border border-red-800 bg-red-950 p-4 text-sm text-red-300">
-          {error}
+        <div className="card rounded-lg border-red-500/20 bg-red-500/[0.06] px-4 py-3 text-sm text-red-300">
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            {error}
+          </div>
         </div>
       )}
 
       {warning && (
-        <div className="rounded-lg border border-yellow-700 bg-yellow-950 p-4 text-sm text-yellow-300">
-          {warning}
+        <div className="card rounded-lg border-yellow-500/20 bg-yellow-500/[0.06] px-4 py-3 text-sm text-yellow-300">
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {warning}
+          </div>
         </div>
       )}
 
