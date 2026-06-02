@@ -82,3 +82,33 @@ export async function getIdea(ideaId: string): Promise<WorkflowRunResponse> {
   }
   return res.json();
 }
+
+const TERMINAL_STATUSES = new Set(["completed", "failed", "partial_success"]);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Poll the idea endpoint until its run reaches a terminal status.
+ * The pipeline now runs in the background, so the client waits here.
+ */
+export async function pollIdea(
+  ideaId: string,
+  { intervalMs = 2000, timeoutMs = 180000 }: { intervalMs?: number; timeoutMs?: number } = {}
+): Promise<WorkflowRunResponse> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const run = await getIdea(ideaId);
+      if (TERMINAL_STATUSES.has(run.status)) return run;
+    } catch (err) {
+      // The run row may not be queryable for a beat after submit — keep polling until the deadline.
+      if (Date.now() > deadline) throw err;
+    }
+    if (Date.now() > deadline) {
+      throw new Error("Timed out waiting for the workflow to finish.");
+    }
+    await sleep(intervalMs);
+  }
+}

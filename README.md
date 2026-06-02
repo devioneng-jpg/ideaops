@@ -85,17 +85,37 @@ The frontend runs at `http://localhost:3000`.
 
 1. Configure your Twilio phone number's webhook URL to `POST https://<your-host>/api/twilio/inbound`
 2. For local dev, use ngrok: `ngrok http 8000`
-3. Text your idea to the Twilio number
+3. Text your idea to the Twilio number — you'll get an instant "on it" reply, then a second SMS with the brief once the run finishes.
 
 ## API Endpoints
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `POST` | `/api/ideas` | Submit idea, run pipeline, return result |
+| `POST` | `/api/ideas` | Submit idea; runs the pipeline in the background and returns `{idea_id, run_id, status: "processing"}` to poll |
 | `GET` | `/api/ideas` | List all submitted ideas |
-| `GET` | `/api/ideas/{id}` | Get idea with full run details |
-| `POST` | `/api/twilio/inbound` | Twilio SMS webhook |
+| `GET` | `/api/ideas/{id}` | Get idea with full run details (poll this for terminal status) |
+| `POST` | `/api/twilio/inbound` | Twilio SMS webhook (acks instantly, texts the brief when ready) |
 | `GET` | `/api/health` | Health check |
+
+**Execution model:** the workflow runs as a FastAPI background task, so submissions
+return immediately. The web UI polls `GET /api/ideas/{id}` until the run reaches a
+terminal status (`completed` / `failed` / `partial_success`); SMS callers get the
+result pushed back as an outbound message.
+
+## Development
+
+Run from `apps/api`:
+
+```bash
+# Unit tests — mock all LLM/DB calls, no secrets needed
+pip install -r requirements-dev.txt
+python -m pytest
+
+# Eval the agents against the golden set — needs a real ANTHROPIC_API_KEY in .env
+python -m evals.run_evals
+```
+
+CI (`.github/workflows/ci.yml`) runs the unit tests on every PR.
 
 ## Environment Variables
 

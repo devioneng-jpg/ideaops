@@ -47,6 +47,13 @@ Every specialist is a pure typed function on top of it.
 - Per-step observability in `agent_step_logs`
 - Two intake channels (web form + Twilio inbound), Notion publishing, Supabase persistence
 - Bug fixes: valid model id, deterministic temperature, TwiML output escaping
+- **Async execution** — `POST /api/ideas` runs the pipeline as a FastAPI
+  background task and returns `processing`; the web UI polls for the terminal
+  status, and SMS callers get an instant ack plus an outbound result message.
+  (Lightweight: no external job queue.)
+- **Eval harness + CI** — golden set + offline runner (`evals/`), mocked-LLM unit
+  tests for the supervisor, retry helper, and full graph wiring (`tests/`), and a
+  GitHub Actions workflow that runs them on every PR.
 
 ---
 
@@ -55,13 +62,12 @@ Every specialist is a pure typed function on top of it.
 Kept here so they aren't lost — none are in the v1 scope.
 
 1. **Per-step cost/latency/token capture** — extend `agent_step_logs` with
-   `model`, `input_tokens`, `output_tokens`, `latency_ms`, `cost_usd`.
-2. **Eval harness** — golden set of sample ideas + a runner that checks schema
-   validity and score sanity; unit tests with a mocked LLM; CI.
-3. **Twilio signature validation** — verify `X-Twilio-Signature` to stop
+   `model`, `input_tokens`, `output_tokens`, `latency_ms`, `cost_usd`. Would also
+   let the eval runner report tokens/$ per idea.
+2. **Twilio signature validation** — verify `X-Twilio-Signature` to stop
    unauthenticated webhook hits burning credits.
-4. **Async execution** — only if runs get long enough to risk the Twilio webhook
-   timeout; v1 stays synchronous per spec (no job queue).
+3. **Durable async** — if single-user background tasks become a bottleneck, move
+   to a real queue (Redis/RQ) with retry/visibility. Not needed at current scale.
 
 ## Explicitly out of scope for v1
 
