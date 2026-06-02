@@ -6,7 +6,7 @@ import { ResultCard } from "@/components/result-card";
 import { TaskTable } from "@/components/task-table";
 import {
   submitIdea,
-  getIdea,
+  pollIdea,
   type IdeaSubmissionResponse,
   type WorkflowRunResponse,
 } from "@/lib/api";
@@ -24,12 +24,23 @@ export default function HomePage() {
     setError(null);
 
     try {
-      const res = await submitIdea(ideaText);
-      setResult(res);
-
-      // Fetch full details including tasks
-      const full = await getIdea(res.idea_id);
+      // Submit returns immediately; the pipeline runs in the background.
+      const ack = await submitIdea(ideaText);
+      // Poll until the run finishes, then render the result + tasks.
+      const full = await pollIdea(ack.idea_id);
       setDetails(full);
+      setResult({
+        idea_id: full.idea_id,
+        run_id: full.run_id,
+        status: full.status,
+        summary: full.planning_output?.one_sentence_summary ?? null,
+        category: full.classifier_output?.category ?? null,
+        total_score: full.scoring_output?.total_score ?? null,
+        notion_url: full.notion_url,
+      });
+      if (full.status === "failed") {
+        setError(full.error_message || "The workflow failed. Please try again.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

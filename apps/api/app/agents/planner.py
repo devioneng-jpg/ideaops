@@ -1,10 +1,7 @@
-import json
 import logging
 
-from langchain_anthropic import ChatAnthropic
-
-from app.config import settings
-from app.models.agent_outputs import ClassifierOutput, ScoringOutput, PlanningOutput
+from app.agents.base import call_structured, get_llm
+from app.models.agent_outputs import ClassifierOutput, PlanningOutput, ScoringOutput
 from app.prompts.planner import PLANNER_PROMPT
 
 logger = logging.getLogger(__name__)
@@ -16,13 +13,7 @@ def run_planner(
     scoring: ScoringOutput,
 ) -> PlanningOutput:
     """Generate an MVP project brief and 30-day plan."""
-    llm = ChatAnthropic(
-        model=settings.llm_model,
-        api_key=settings.anthropic_api_key,
-        temperature=settings.llm_temperature,
-        max_tokens=2048,
-    )
-
+    llm = get_llm(max_tokens=2048)
     prompt = PLANNER_PROMPT.format(
         idea_text=idea_text,
         category=classifier.category,
@@ -37,11 +28,4 @@ def run_planner(
         business_value_score=scoring.business_value_score,
         rationale=scoring.rationale,
     )
-    response = llm.invoke(prompt)
-    content = response.content
-
-    if isinstance(content, list):
-        content = content[0].get("text", "") if content else ""
-
-    parsed = json.loads(content)
-    return PlanningOutput(**parsed)
+    return call_structured(llm, prompt, PlanningOutput)

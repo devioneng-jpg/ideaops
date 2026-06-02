@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.models.requests import IdeaSubmissionRequest
 from app.models.responses import IdeaSubmissionResponse, WorkflowRunResponse
@@ -19,54 +19,35 @@ router = APIRouter()
 
 
 @router.post("/api/ideas", response_model=IdeaSubmissionResponse)
-def submit_idea(req: IdeaSubmissionRequest):
-    """Submit a new idea and run the full agent pipeline."""
-    # 1. Create idea record
+def submit_idea(req: IdeaSubmissionRequest, background_tasks: BackgroundTasks):
+    """Submit an idea and kick off the pipeline in the background.
+
+    Returns immediately with status ``processing``; the client polls
+    ``GET /api/ideas/{idea_id}`` for the terminal status and results.
+    """
+    # 1. Create idea + run records up front so the client has IDs to poll.
     idea = db.create_idea(
         raw_text=req.idea_text,
         source=req.source,
         user_phone=req.user_phone,
     )
     idea_id = idea["id"]
-
-    # 2. Create workflow run
     run = db.create_run(idea_id)
     run_id = run["id"]
 
-    # 3. Execute pipeline
-    result = run_workflow(
+    # 2. Run the workflow after the response is sent.
+    background_tasks.add_task(
+        run_workflow,
         idea_text=req.idea_text,
         idea_id=idea_id,
         run_id=run_id,
     )
 
-    # 4. Build response
-    status = result.get("status", "failed")
-    summary = None
-    category = None
-    total_score = None
-    notion_url = result.get("notion_url")
-
-    planning: PlanningOutput | None = result.get("planning_output")
-    if planning:
-        summary = planning.one_sentence_summary
-
-    classifier: ClassifierOutput | None = result.get("classifier_output")
-    if classifier:
-        category = classifier.category
-
-    scoring: ScoringOutput | None = result.get("scoring_output")
-    if scoring:
-        total_score = scoring.total_score
-
+    # 3. Acknowledge immediately.
     return IdeaSubmissionResponse(
         idea_id=idea_id,
         run_id=run_id,
-        status=status,
-        summary=summary,
-        category=category,
-        total_score=total_score,
-        notion_url=notion_url,
+        status="processing",
     )
 
 
