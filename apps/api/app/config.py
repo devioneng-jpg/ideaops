@@ -12,7 +12,6 @@ class Settings(BaseSettings):
     twilio_phone_number: str = ""
     supabase_url: str
     supabase_service_role_key: str
-    database_url: str = ""
 
     # LLM config — low temperature keeps the deterministic v1 planning stable
     llm_model: str = "claude-sonnet-4-20250514"
