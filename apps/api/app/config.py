@@ -14,9 +14,9 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     database_url: str = ""
 
-    # LLM config
-    llm_model: str = "sonnet-4-20250514"
-    llm_temperature: float = 0.3
+    # LLM config — low temperature keeps the deterministic v1 planning stable
+    llm_model: str = "claude-sonnet-4-20250514"
+    llm_temperature: float = 0.0
 
 
 settings = Settings()  # type: ignore[call-arg]

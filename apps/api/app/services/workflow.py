@@ -1,7 +1,16 @@
-"""LangGraph sequential workflow for IdeaOps.
+"""LangGraph supervisor + specialists workflow for IdeaOps.
 
-State flows linearly: classify → score → plan → break_down_tasks → publish_notion.
-Each node logs to agent_step_logs. Failures short-circuit the pipeline.
+A deterministic `supervisor` node routes to one specialist at a time, and every
+specialist returns to the supervisor, which decides what runs next:
+
+    supervisor → classify → supervisor → score → supervisor → plan
+              → supervisor → break_down_tasks → supervisor → publish_notion
+              → supervisor → finalize
+
+Routing is rule-based (no LLM, no autonomous loops) so v1 runs are reproducible.
+Each specialist logs to agent_step_logs. A failure short-circuits the pipeline:
+the supervisor routes straight to `finalize`. A Notion failure is softer — the
+structured outputs are already saved, so the run ends as `partial_success`.
 """
 
 import logging
@@ -42,11 +51,50 @@ class WorkflowState(TypedDict, total=False):
     notion_url: str
 
     # Control
+    next: str
     status: str
     error_message: str
 
 
-# ── Node functions ────────────────────────────────────────────────────────────
+# ── Supervisor ────────────────────────────────────────────────────────────────
+
+# The specialists, in the fixed order the supervisor dispatches them.
+SPECIALISTS = ["classify", "score", "plan", "break_down_tasks", "publish_notion"]
+
+
+def supervisor(state: WorkflowState) -> dict[str, Any]:
+    """Pick the next specialist to run, or finalize on completion/failure.
+
+    Deterministic and rule-based: it inspects which outputs already exist and
+    routes to the first missing step. A failed status routes straight to finalize.
+    """
+    if state.get("status") == "failed":
+        nxt = "finalize"
+    elif "classifier_output" not in state:
+        nxt = "classify"
+    elif "scoring_output" not in state:
+        nxt = "score"
+    elif "planning_output" not in state:
+        nxt = "plan"
+    elif "task_output" not in state:
+        nxt = "break_down_tasks"
+    elif "notion_page_id" not in state and state.get("status") != "partial_success":
+        nxt = "publish_notion"
+    else:
+        nxt = "finalize"
+
+    logger.info("Supervisor → %s (run %s)", nxt, state.get("run_id"))
+    return {"next": nxt}
+
+
+def route(state: WorkflowState) -> str:
+    """Conditional-edge selector — hands control to the node the supervisor chose."""
+    return state["next"]
+
+
+# ── Specialist nodes ──────────────────────────────────────────────────────────
+# The supervisor guarantees a node only runs when its turn comes, so these don't
+# re-check upstream status — they just do their work and report back.
 
 def classify(state: WorkflowState) -> dict[str, Any]:
     run_id = state["run_id"]
@@ -65,9 +113,6 @@ def classify(state: WorkflowState) -> dict[str, Any]:
 
 
 def score(state: WorkflowState) -> dict[str, Any]:
-    if state.get("status") == "failed":
-        return {}
-
     run_id = state["run_id"]
     db.log_step(run_id, "score", "started")
     try:
@@ -82,9 +127,6 @@ def score(state: WorkflowState) -> dict[str, Any]:
 
 
 def plan(state: WorkflowState) -> dict[str, Any]:
-    if state.get("status") == "failed":
-        return {}
-
     run_id = state["run_id"]
     db.log_step(run_id, "plan", "started")
     try:
@@ -103,9 +145,6 @@ def plan(state: WorkflowState) -> dict[str, Any]:
 
 
 def break_down_tasks(state: WorkflowState) -> dict[str, Any]:
-    if state.get("status") == "failed":
-        return {}
-
     run_id = state["run_id"]
     db.log_step(run_id, "break_down_tasks", "started")
     try:
@@ -121,9 +160,6 @@ def break_down_tasks(state: WorkflowState) -> dict[str, Any]:
 
 
 def publish_notion(state: WorkflowState) -> dict[str, Any]:
-    if state.get("status") == "failed":
-        return {}
-
     run_id = state["run_id"]
     db.log_step(run_id, "publish_notion", "started")
     try:
@@ -146,14 +182,14 @@ def publish_notion(state: WorkflowState) -> dict[str, Any]:
             "status": "completed",
         }
     except Exception as e:
-        # Notion failure → partial_success (other outputs are saved)
+        # Notion failure → partial_success (other outputs are already saved)
         logger.exception("Notion publisher failed")
         db.log_step(run_id, "publish_notion", "failed", error_message=str(e))
         return {"status": "partial_success", "error_message": f"Notion publish failed: {e}"}
 
 
 def finalize(state: WorkflowState) -> dict[str, Any]:
-    """Final node — persists the terminal status to the DB."""
+    """Terminal node — persists the run's final status to the DB."""
     run_id = state["run_id"]
     idea_id = state["idea_id"]
     status = state.get("status", "completed")
@@ -173,6 +209,7 @@ def finalize(state: WorkflowState) -> dict[str, Any]:
 def build_workflow() -> StateGraph:
     graph = StateGraph(WorkflowState)
 
+    graph.add_node("supervisor", supervisor)
     graph.add_node("classify", classify)
     graph.add_node("score", score)
     graph.add_node("plan", plan)
@@ -180,14 +217,26 @@ def build_workflow() -> StateGraph:
     graph.add_node("publish_notion", publish_notion)
     graph.add_node("finalize", finalize)
 
-    graph.set_entry_point("classify")
-    graph.add_edge("classify", "score")
-    graph.add_edge("score", "plan")
-    graph.add_edge("plan", "break_down_tasks")
-    graph.add_edge("break_down_tasks", "publish_notion")
-    graph.add_edge("publish_notion", "finalize")
-    graph.add_edge("finalize", END)
+    # The supervisor is the hub: it routes out to one specialist...
+    graph.set_entry_point("supervisor")
+    graph.add_conditional_edges(
+        "supervisor",
+        route,
+        {
+            "classify": "classify",
+            "score": "score",
+            "plan": "plan",
+            "break_down_tasks": "break_down_tasks",
+            "publish_notion": "publish_notion",
+            "finalize": "finalize",
+        },
+    )
 
+    # ...and every specialist reports back to the supervisor.
+    for specialist in SPECIALISTS:
+        graph.add_edge(specialist, "supervisor")
+
+    graph.add_edge("finalize", END)
     return graph
 
 
@@ -196,11 +245,10 @@ workflow = build_workflow().compile()
 
 
 def run_workflow(idea_text: str, idea_id: str, run_id: str) -> WorkflowState:
-    """Execute the full IdeaOps pipeline. Returns final state."""
+    """Execute the full IdeaOps supervisor pipeline. Returns the final state."""
     initial_state: WorkflowState = {
         "idea_text": idea_text,
         "idea_id": idea_id,
         "run_id": run_id,
     }
-    result = workflow.invoke(initial_state)
-    return result
+    return workflow.invoke(initial_state)

@@ -4,7 +4,9 @@ Turn a raw idea into a structured, actionable project brief using a multi-agent 
 
 ## How It Works
 
-Submit an idea via web form or SMS. A sequential agent pipeline:
+Submit an idea via web form or SMS. A **supervisor + specialists** workflow
+(LangGraph) dispatches one specialist agent at a time and routes deterministically
+between them:
 
 1. **Classifies** it (category, audience, effort, urgency)
 2. **Scores** it (novelty, feasibility, portfolio value, business value)
@@ -17,10 +19,10 @@ All data is persisted in Supabase. Results are returned as JSON (web) or SMS.
 ## Architecture
 
 ```
-Next.js Web Form ──→ POST /api/ideas ──→ FastAPI ──→ LangGraph Workflow ──→ Supabase
-Twilio SMS ────────→ POST /api/twilio/inbound ──┘        │
-                                                          ▼
-                                                     Notion Page
+Next.js Web Form ──→ POST /api/ideas ──→ FastAPI ──→ LangGraph Supervisor ──→ Supabase
+Twilio SMS ────────→ POST /api/twilio/inbound ──┘     (classify → score →     │
+                                                       plan → tasks →          ▼
+                                                       publish)           Notion Page
 ```
 
 ## Project Structure

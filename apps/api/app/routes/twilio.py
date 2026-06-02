@@ -1,4 +1,5 @@
 import logging
+from xml.sax.saxutils import escape
 
 from fastapi import APIRouter, Form, Response
 
@@ -57,9 +58,9 @@ def twilio_inbound(Body: str = Form(...), From: str = Form(...)):
     else:
         reply_body = format_result_sms(summary, category, total_score, notion_url)
 
-    # Respond with TwiML
+    # Respond with TwiML (escape the model-generated body so it can't break the XML)
     twiml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
-        f"<Response><Message>{reply_body}</Message></Response>"
+        f"<Response><Message>{escape(reply_body)}</Message></Response>"
     )
     return Response(content=twiml, media_type="application/xml")

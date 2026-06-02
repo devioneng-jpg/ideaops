@@ -3,7 +3,15 @@ from pydantic import BaseModel, Field
 
 
 class ClassifierOutput(BaseModel):
-    category: str = Field(..., description="Category of the idea, e.g. SaaS, Marketplace, Dev Tool, Mobile App")
+    category: Literal[
+        "saas",
+        "internal_tool",
+        "ai_agent",
+        "content",
+        "marketplace",
+        "workflow_automation",
+        "other",
+    ] = Field(..., description="Idea category (fixed v1 taxonomy)")
     audience: str = Field(..., description="Target audience for this idea")
     problem_statement: str = Field(..., description="Concise problem statement the idea addresses")
     effort_level: Literal["low", "medium", "high"] = Field(..., description="Estimated effort to build")
@@ -12,11 +20,11 @@ class ClassifierOutput(BaseModel):
 
 
 class ScoringOutput(BaseModel):
-    novelty_score: float = Field(..., ge=0, le=10, description="How novel is this idea (0-10)")
-    feasibility_score: float = Field(..., ge=0, le=10, description="How feasible to build (0-10)")
-    portfolio_value_score: float = Field(..., ge=0, le=10, description="Portfolio / learning value (0-10)")
-    business_value_score: float = Field(..., ge=0, le=10, description="Business / revenue potential (0-10)")
-    total_score: float = Field(..., ge=0, le=10, description="Weighted total score (0-10)")
+    novelty_score: float = Field(..., ge=1, le=10, description="How novel is this idea (0-10)")
+    feasibility_score: float = Field(..., ge=1, le=10, description="How feasible to build (0-10)")
+    portfolio_value_score: float = Field(..., ge=1, le=10, description="Portfolio / learning value (0-10)")
+    business_value_score: float = Field(..., ge=1, le=10, description="Business / revenue potential (0-10)")
+    total_score: float = Field(..., ge=1, le=10, description="Weighted total score (0-10)")
     rationale: str = Field(..., description="Explanation of the scoring")
 
 

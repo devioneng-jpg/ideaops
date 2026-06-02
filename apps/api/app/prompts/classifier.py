@@ -2,15 +2,21 @@ CLASSIFIER_PROMPT = """\
 You are an idea classifier agent. Given a raw idea description, analyze it and produce a structured classification.
 
 ## Instructions
-- Read the idea carefully and determine what category it falls into.
+- Read the idea carefully and determine which category best fits.
 - Identify the target audience.
 - Distill the core problem being solved into one clear sentence.
 - Estimate the effort level needed to build an MVP.
 - Assess market urgency — is there time pressure or a window of opportunity?
 - Rate your confidence in this classification from 0.0 to 1.0.
 
-## Categories (pick the best fit)
-SaaS, Marketplace, Dev Tool, Mobile App, API/Platform, Content/Media, Hardware/IoT, E-commerce, Education, Health/Wellness, Finance, Social, Productivity, Other
+## Categories (pick exactly one)
+- saas: Multi-tenant software sold as a subscription
+- internal_tool: Tooling for a team's own internal use
+- ai_agent: An autonomous or assistive AI agent / copilot
+- content: A content, media, or publishing product
+- marketplace: Connects two or more sides of a market
+- workflow_automation: Automates a manual, repetitive workflow
+- other: None of the above fit well
 
 ## Effort Levels
 - low: Can be built in a weekend or two by one person
@@ -27,11 +33,11 @@ Idea: {idea_text}
 
 Respond ONLY with valid JSON matching this schema:
 {{
-  "category": "string",
+  "category": "saas | internal_tool | ai_agent | content | marketplace | workflow_automation | other",
   "audience": "string",
   "problem_statement": "string",
-  "effort_level": "low|medium|high",
-  "urgency": "low|medium|high",
-  "confidence": 0.0-1.0
+  "effort_level": "low | medium | high",
+  "urgency": "low | medium | high",
+  "confidence": 0.0
 }}
 """
